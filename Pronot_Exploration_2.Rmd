@@ -1,0 +1,500 @@
+---
+title: "Pronto_Exploration_2"
+author: "Aaron Lichtner"
+date: "November 6, 2015"
+output: html_document
+runtime: shiny
+---
+# How do people use the system? Cater to them.
+
+```{r}
+library(dplyr)
+library(ggvis)
+library(shiny)
+library(knitr)
+library(sp)
+library(leaflet)
+library(lubridate)
+library(reshape2)
+library(ggplot2)
+library(DT)
+library(shape)
+opts_chunk$set(out.width='800px', dpi=200)
+dtoptions = list(searching = FALSE, pageLength = 10, lengthChange = FALSE)
+```
+
+
+```{r}
+df <- readRDS("data.rds")
+```
+
+# Net Elevation Change
+
+```{r echo = FALSE}
+
+m <- df %>% 
+        group_by(Date) %>% 
+        summarize(netElev = sum(elevation_diff, na.rm = TRUE)) %>% 
+        ggvis(x = ~Date, y = ~netElev ) %>% 
+        layer_points(size = 0.10, fill = "green") %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>% 
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("", "fill")) %>%
+        bind_shiny("elevationDiff")
+
+ggvisOutput("elevationDiff")
+```
+
+There was only one day (Day 1) where the system had a net positive elevation change. No doubt due to the number of early adopters trying out the system and challenging themselves to get up all of Seattle's hills. The trend quickly changed in how people use the system. 
+
+### Net Elevation Change within the system normalized by the number of riders
+
+```{r echo = FALSE}
+
+m <- df %>% 
+        group_by(Date) %>% 
+        summarize(trips = n(), netElev = sum(elevation_diff, na.rm = TRUE))
+
+scatter.smooth(m$Date, (m$netElev*3.28)/m$trips, span = 0.3, pch = 16, cex = 1.5, col = "#68D2DF", alpha = 0.5, axes = TRUE, lpars = c(col = "#003B49", lwd = 2))
+abline(h = c(0, -20, -40, -60, -80), col = c("black", "grey", "grey", "grey", "grey"))
+
+m %>% 
+        ggvis(x = ~Date, y = ~netElev/trips) %>% 
+        layer_points(size = 0.10, fill = "green") %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>% 
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("", "fill")) %>%
+        bind_shiny("elevationDiffNorm")
+
+ggvisOutput("elevationDiffNorm")
+
+# Graph men and women's
+```
+
+
+
+```{r echo = FALSE}
+
+m <- df %>% 
+        group_by(Date, usertype) %>% 
+        summarize(netElev = sum(elevation_diff, na.rm = TRUE)) %>% 
+        ggvis(x = ~Date, y = ~netElev) %>% 
+        layer_points(size = 0.10, fill = ~usertype) %>% 
+        group_by(usertype) %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Normalized Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("fill")) %>%
+        bind_shiny("elevUser")
+
+ggvisOutput("elevUser")
+
+```
+
+### Net Elevation Change of by rider type normalized by number of riders
+
+```{r echo = FALSE}
+
+m <- df %>% 
+        group_by(Date, usertype) %>% 
+        summarize(trips = n(), netElev = sum(elevation_diff, na.rm = TRUE)) %>% 
+        ggvis(x = ~Date, y = ~netElev/trips) %>% 
+        layer_points(size = 0.10, fill = ~usertype) %>% 
+        group_by(usertype) %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Normalized Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("fill")) %>%
+        bind_shiny("elevUserNorm")
+
+ggvisOutput("elevUserNorm")
+
+```
+
+```{r echo = FALSE}
+
+m <- df %>% 
+        filter(gender == "Male" | gender == "Female") %>%
+        group_by(Date, gender) %>% 
+        summarize(netElev = sum(elevation_diff, na.rm = TRUE)) %>% 
+        ggvis(x = ~Date, y = ~netElev) %>% 
+        layer_points(size = 0.10, fill = ~gender) %>%
+        group_by(gender) %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("fill")) %>%
+        bind_shiny("elevGender")
+
+ggvisOutput("elevGender")
+
+# Graph men and women's
+```
+
+### Gender separated elevation change normalized by number of riders
+
+```{r echo = FALSE}
+m <- df %>% 
+        filter(gender == "Male" | gender == "Female") %>%
+        group_by(Date, gender) %>% 
+        summarize(trips = n(), netElev = sum(elevation_diff, na.rm = TRUE)) %>% 
+        ggvis(x = ~Date, y = ~netElev/trips) %>% 
+        layer_points(size = 0.10, fill = ~gender) %>% 
+        group_by(gender) %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Normalized Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("fill")) %>%
+        bind_shiny("elevGenderNorm")
+
+ggvisOutput("elevGenderNorm")
+```
+
+
+```{r echo = FALSE}
+m <- df %>% 
+        group_by(Date, dayType) %>% 
+        summarize(trips = n(), netElev = sum(elevation_diff, na.rm = TRUE)) %>% 
+        ggvis(x = ~Date, y = ~netElev/trips) %>% 
+        layer_points(size = 0.10, fill = ~dayType) %>% 
+        group_by(dayType) %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Normalized Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("fill")) %>%
+        bind_shiny("elevDayType")
+
+ggvisOutput("elevDayType")
+```
+
+
+```{r echo = FALSE}
+m <- df %>% 
+        group_by(Date, Events) %>% 
+        summarize(trips = n(), netElev = sum(elevation_diff, na.rm = TRUE)) %>% 
+        ggvis(x = ~Date, y = ~netElev/trips) %>% 
+        layer_points(size = 0.10, fill = ~Events) %>% 
+        add_axis("x", title = "", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Normalized Net Elevation Change", title_offset = 50) %>%
+        add_legend(c("fill")) %>%
+        bind_shiny("elevWeather")
+
+ggvisOutput("elevWeather")
+```
+
+```{r}
+tripPairsFrom <- df %>% 
+                group_by(from_station_name) %>% 
+                summarize(lat = lat_from[1], long = long_from[1], numtrips = n()) %>% 
+                arrange(desc(numtrips)) 
+
+tripPairsTo <- df %>% 
+                group_by(to_station_name) %>% 
+                summarize(lat = lat_to[1], long = long_to[1], numtrips = n()) %>% 
+                arrange(desc(numtrips)) 
+
+# Trips from stations
+par(mar = c(15,3,2,1))
+barplot(tripPairsFrom$numtrips, names.arg = tripPairsFrom$from_station_name, cex.names = 0.50, las = 2)
+
+tripPairsFrom %>% 
+        leaflet() %>%
+        addProviderTiles("CartoDB.Positron") %>% 
+        setView(lng = -122.33, lat = 47.62, zoom = 12) %>% 
+        addCircles(lng = ~long, lat = ~lat, weight = 1, radius = ~sqrt(numtrips) * 2, popup = ~from_station_name)
+```
+
+
+```{r}
+# Destination Stations
+par(mar = c(15,3,2,1))
+barplot(tripPairsTo$numtrips, names.arg = tripPairsTo$to_station_name, cex.names = 0.50, las = 2)
+
+        tripPairsTo %>% 
+                leaflet() %>% 
+                addProviderTiles("Stamen.Watercolor") %>% 
+                setView(lng = -122.33, lat = 47.63, zoom = 12) %>% 
+                addCircles(lng = ~long, lat = ~lat, weight = 1, radius = ~sqrt(numtrips) * 2, popup = ~to_station_name)
+        
+```
+
+
+```{r}
+# Show bikes coming vs. going for each station
+        
+        from <- df %>% filter(dayType == "Weekday" & from_station_name != "Pronto shop") %>%
+                group_by(from_station_name, time = hour(starttime)) %>% 
+                summarize(fromCount = n()) 
+        
+         toFrom <- df %>% filter(dayType == "Weekday" & to_station_name != "Pronto shop" & region_to == "FH" | region_to == "CD") %>%
+                group_by(station = to_station_name, time = hour(stoptime)) %>% 
+                summarize(toCount = n(), Area = region_to[1]) %>% 
+                left_join(from, by = c("station" = "from_station_name", "time")) %>% 
+                replace(is.na(.), 0) %>%
+                mutate(netBikes = (toCount - fromCount)) %>% ungroup() %>%
+                arrange(Area)
+         
+         wide <- dcast(toFrom, time ~ station)
+         wide <- replace(wide, is.na(wide), 0)
+         
+         #68D2DF
+         #003B49
+         
+         toFrom$station_f <- factor(toFrom$station, levels = unique(toFrom$station))
+         
+g <- ggplot()
+g <- g + geom_area(data = toFrom, aes(time, toCount), fill = "blue") + 
+         geom_area(data = toFrom, aes(time, -fromCount), fill = "darkgreen") + 
+        coord_cartesian(ylim = c(-650, 700)) +
+         facet_wrap(~station_f, ncol = 4) + 
+         theme(axis.text = element_blank(), 
+               axis.ticks = element_blank(), 
+               plot.title = element_text(size = 15, vjust = 2),
+               panel.grid.minor = element_blank(),
+               panel.grid.major = element_blank(),
+               panel.background = element_blank())
+g
+
+ggsave(filename = "ch.pdf", height = 6, units = "in", dpi = 300)
+
+par(mfrow=c(7,8), mar=c(1,1,2,2))
+for (i in 1:55) {
+        plot(wide$time, wide[,(i+1)], type = "n")
+        polygon(wide$time, wide[,(i+1)], col = "red")
+}     
+
+```        
+
+### System wide usage by hour
+
+```{r}
+WeekdayHour <- df %>% filter(dayType == "Weekday") %>%
+                group_by(time = hour(starttime)) %>% 
+                summarize(count = n()/250) # Divide by number of weekdays (without holidays)
+
+WeekendHour <- df %>% filter(dayType == "Weekend") %>%
+                group_by(time = hour(starttime)) %>% 
+                summarize(count = n()/114) # Divide by weekends and holidays
+
+par(mfrow=c(2,1), mar=c(4,4,2,1))
+        barplot(rep(NA,length(WeekendHour$count)),ylim=c(0,max(WeekdayHour$count)),axes=FALSE)
+        abline(h=c(10, 20, 30, 40), col = "grey")
+        barplot(WeekdayHour$count, col = "#003B49", axes = FALSE, add=T, border = FALSE)
+        
+        barplot(rep(NA,length(WeekendHour$count)),ylim=c(0,45),axes=FALSE)
+        abline(h=c(10,20,30,40), col = "grey")
+        barplot(WeekendHour$count, col = "#68D2DF", add = T, axes = FALSE, border = FALSE)
+       
+
+```
+
+### How does it change by region?
+
+```{r}
+WeekdayRegionHour <- df %>% filter(dayType == "Weekday") %>%
+                group_by(region = region_from, time = hour(starttime)) %>% 
+                summarize(count = n()) 
+
+WeekendRegionHour <- df %>% filter(dayType == "Weekend") %>%
+                group_by(region = region_from, time = hour(starttime)) %>% 
+                summarize(count = n()) 
+
+wideWeekday <-  dcast(WeekdayRegionHour, time ~ region)
+wideWeekday <- replace(wideWeekday, is.na(wideWeekday), 0)
+
+par(mfrow=c(4,4), mar=c(3,1,2,2))
+for (i in 1:13) {
+        barplot(wideWeekday[,(i+1)], names.arg = colnames(wideWeekday[i+1]))
+}
+
+wideWeekend <-  dcast(WeekendRegionHour, time ~ region)
+wideWeekend <- replace(wideWeekend, is.na(wideWeekend), 0)
+
+par(mfrow=c(4,4), mar=c(3,1,2,2))
+for (i in 1:13) {
+        barplot(wideWeekend[,(i+1)], names.arg = colnames(wideWeekend[i+1]))
+}
+
+
+```
+
+### Rides over the year (Weekday)
+
+```{r}
+rides <- df %>% filter(dayType == "Weekday") %>% 
+        group_by(Date) %>% 
+        summarize(count = n()) 
+
+d <- ggplot(rides, aes(Date, count)) +
+        geom_ribbon(aes(ymin = 0, ymax = count)) + 
+        theme_bw()
+d
+```
+
+### Annual vs. non-annual by station
+
+
+### Temperature
+
+```{r}
+
+```
+
+### Most common trip pairs
+
+```{r}
+
+commonPairs <- df %>% 
+        group_by(from_station_name, to_station_name) %>% 
+        summarize(count = n(), lat_from = mean(lat_from), lat_to = mean(lat_to), 
+                  long_from = mean(long_from), long_to = mean(long_to)) %>% 
+        arrange(desc(count)) %>% 
+        filter(from_station_name != to_station_name) %>%
+        top_n(count, n=1)
+
+commonPairs
+
+mostTrips <- df %>% group_by(from_station_name) %>% summarize(count = n(), lat_from = mean(lat_from), long_from = mean(long_from)) %>% arrange(desc(count))
+
+most <- ggplot()
+
+most <- most + geom_point(data=mostTrips, aes(x=long_from, y=lat_from, size=count), fill = "#8EDD65", color="#8EDD65", pch=21) + 
+        geom_curve(data = commonPairs, aes(x = long_from, 
+                                           y = lat_from,
+                                           xend = long_to,
+                                           yend = lat_to,
+                                           size = 1), 
+                                           color = "#8EDD65",
+                                           lineend = "butt", 
+                                           curvature = 0.4,
+                                           angle = 90) +
+        scale_size_continuous(range = c(1,20)) + theme_bw()
+most
+
+```
+
+### Role of rain
+
+```{r}
+
+dailyPrec <- df %>% 
+        filter(Precipitation_In != "NA") %>% 
+        group_by(Date) %>% 
+        summarize(count = n(), rain = mean(Precipitation_In)) %>% 
+        arrange(desc(count)) %>% 
+        group_by(rain) %>% summarize(avgRides = mean(count)) %>% 
+        arrange(desc(avgRides)) 
+
+m <- ggplot()
+m <- m + geom_point(data = dailyPrec, aes(x = rain, y = avgRides), size = 3) + geom_smooth() + theme_bw()
+m
+
+dailyPrec%>%
+        ggvis(x = ~rain, y = ~avgRides ) %>% 
+        layer_points() %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "Precipitation (inches)", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Average Trips", title_offset = 50) %>%
+        bind_shiny("ridesRain")
+
+ggvisOutput("ridesRain")
+
+
+```
+
+```{r}
+dailyTemp <- df %>% 
+        filter(Mean_Temperature_F != "NA") %>% 
+        group_by(Date) %>% 
+        summarize(count = n(), temp = mean(Mean_Temperature_F)) %>% 
+        arrange(desc(count)) %>% 
+        group_by(temp) %>% summarize(avgRides = mean(count)) %>% 
+        arrange(desc(avgRides)) %>%
+        ggvis(x = ~temp, y = ~avgRides ) %>% 
+        layer_points() %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "Temperature (F)", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Average Trips", title_offset = 50) %>%
+        bind_shiny("ridesTemp")
+
+ggvisOutput("ridesTemp")
+```
+
+There is a much stronger correlation between temperature and number of trips taken than daily precipition and trips taken.
+
+```{r}
+dailyWind <- df %>% 
+        filter(Max_Wind_Speed_MPH != "NA") %>% 
+        group_by(Date) %>% 
+        summarize(count = n(), wind = mean(Max_Wind_Speed_MPH)) %>% 
+        arrange(desc(count)) %>% 
+        group_by(wind) %>% summarize(avgRides = mean(count)) %>% 
+        arrange(desc(avgRides)) %>%
+        ggvis(x = ~wind, y = ~avgRides ) %>% 
+        layer_points() %>% 
+        layer_smooths(span = 0.3, se = TRUE) %>%
+        add_axis("x", title = "Wind Speed (MPH) ", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Average Trips", title_offset = 50) %>%
+        bind_shiny("ridesWind")
+
+ggvisOutput("ridesWind")
+```
+
+```{r}
+dailyMeanWind <- df %>% 
+        filter(Mean_Wind_Speed_MPH != "NA") %>% 
+        group_by(Date) %>% 
+        summarize(count = n(), windMean = mean(Mean_Wind_Speed_MPH)) %>% 
+        arrange(desc(count)) %>% 
+        group_by(windMean) %>% summarize(avgRides = mean(count)) %>% 
+        arrange(desc(avgRides)) %>%
+        ggvis(x = ~windMean, y = ~avgRides) %>% 
+        layer_points() %>% 
+        layer_smooths(se = TRUE) %>%
+        add_axis("x", title = "Mean Wind Speed (MPH) ", properties = axis_props(labels = list(angle = -50, align = "right"))) %>%
+        add_axis("y", title = "Average Trips", title_offset = 50) %>%
+        bind_shiny("ridesMeanWind")
+
+ggvisOutput("ridesMeanWind")
+```
+
+## Bikes
+
+```{r}
+trips <- df %>% group_by(bikeid) %>% 
+        summarize(trips = n()) %>% 
+        arrange(desc(trips)) %>% 
+        ggvis(~trips) %>% 
+        layer_histograms()
+
+# histogram of trips per bike
+
+#hist(trips$trips, breaks = 20, col = "#003B49", type = "n", main = "n")
+#abline(h = c(20,40,60,80), col = "grey")
+#hist(trips$trips, breaks = 20, col = "#003B49", border = FALSE, add = T)
+
+# For people who stay within the 30 minute limit what is the average trip duration
+
+df %>% 
+        group_by(usertype) %>% filter(tripduration <= 3600) %>% ggvis(~tripduration/60) %>% layer_histograms(fill = ~usertype, stroke := "white", stack = FALSE)
+
+df %>% 
+        group_by(usertype) %>% filter(tripduration <= 3600) %>%
+        summarize(duration = mean(tripduration, na.rm = TRUE)/60, sd = sd(tripduration, na.rm = TRUE)/60)
+
+
+
+users <- df %>% group_by(usertype)
+hist(users$tripduration, breaks = 30, freq = FALSE)
+
+```
+
+
+### Hills 
+
+```{r}
+hills <- df %>% group_by(elevation_diff) %>% summarize(count = n()) %>% arrange(desc(elevation_diff))
+
+```
